@@ -1,0 +1,23 @@
+import {describe,it,expect} from 'vitest';import {estimateTax,round} from '../services/tax-engine';import {createDemo,demoFiscal} from '../lib/demo';import {summarize,invoiceStatus} from '../services/finance';import {validVat,validTaxCode,paymentSchema} from '../lib/validation';
+const input={receipts:30000,deductibleContributions:2000,contributionCredits:0,taxCredits:0,reserves:0,cashTaxPayments:2000};
+describe('tax engine',()=>{
+it('cash deduction',()=>{const r=estimateTax(demoFiscal,input);expect(r.income).toBe(20100);expect(r.contributions).toBe(5240.07);expect(r.tax).toBe(2715);});
+it.each([.05,.15])('rate %s',rate=>expect(estimateTax({...demoFiscal,tax_rate:rate},input).tax).toBe(round(18100*rate)));
+it.each([.4,.67,.78,.86])('coefficient %s',coefficient=>expect(estimateTax({...demoFiscal,coefficient},input).income).toBe(round(30000*coefficient)));
+it('no deduction of estimated contributions',()=>expect(estimateTax(demoFiscal,{...input,deductibleContributions:0}).tax).toBe(3015));
+it('GS has no minimum',()=>expect(estimateTax(demoFiscal,{...input,receipts:0}).contributions).toBe(0));
+it.each([['artigiani',.24,4521.36],['commercianti',.2448,4611.64]] as const)('minimum %s',(scheme,contribution_rate,expected)=>expect(estimateTax({...demoFiscal,scheme,contribution_rate,minimum_income:18808,fixed_fee:7.44,extra_rate:.01},{...input,receipts:0}).contributions).toBe(expected));
+it('ceiling',()=>expect(estimateTax({...demoFiscal,ceiling:10000},input).contributions).toBe(2607));
+it('separate credit categories',()=>{const r=estimateTax(demoFiscal,{...input,taxCredits:99999});expect(r.remaining).toBe(r.contributions);});
+it('reserves not double counted',()=>{const a=estimateTax(demoFiscal,{...input,reserves:2000}),b=estimateTax(demoFiscal,{...input,reserves:3000});expect(a.available).toBe(b.available);expect(a.toReserve-b.toReserve).toBe(1000);});
+it('exit threshold',()=>expect(estimateTax(demoFiscal,{...input,receipts:100001}).valid).toBe(false));
+it('half up rounding',()=>{expect(round('1.005')).toBe(1.01);expect(round('2.675')).toBe(2.68);});
+it('invalid input',()=>expect(()=>estimateTax(demoFiscal,{...input,receipts:NaN})).toThrow());
+it('simulator independent',()=>{const p={...demoFiscal};estimateTax({...p,tax_rate:.05},input);expect(p.tax_rate).toBe(.15);});
+it('prior year invoices, current cash',()=>{const d=createDemo();d.invoices[0].issue_date='2025-12-01';expect(summarize(d,2026).receipts).toBe(28100);});
+it('partial and overdue',()=>{const d=createDemo();expect(invoiceStatus(d.invoices[7],d,'2026-08-21')).toBe('Parziale');expect(invoiceStatus(d.invoices[7],d,'2026-09-29')).toBe('Scaduta · parziale');});
+it('deduct actual prior year contribution paid now',()=>expect(summarize(createDemo(),2026).estimate?.input.deductibleContributions).toBe(2100));
+it('no stale annual config',()=>expect(summarize(createDemo(),2025).estimate).toBeNull());
+it('identifiers',()=>{expect(validVat('01114601006')).toBe(true);expect(validVat('00000000000')).toBe(false);expect(validTaxCode('RSSMRA85T10A562S')).toBe(true);});
+it('rejects future payment',()=>expect(paymentSchema.safeParse({invoice_id:crypto.randomUUID(),amount:1,paid_on:'2099-01-01',method:'bank',notes:''}).success).toBe(false));
+});

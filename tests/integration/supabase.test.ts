@@ -1,0 +1,8 @@
+import {beforeAll,afterAll,it,expect} from 'vitest';import {createClient} from '@supabase/supabase-js';
+const url=process.env.TEST_SUPABASE_URL,key=process.env.TEST_SUPABASE_PUBLISHABLE_KEY,secret=process.env.TEST_SUPABASE_SECRET_KEY;
+if(!url||!key||!secret)throw new Error('Usare un progetto Supabase di prova e impostare TEST_SUPABASE_URL, TEST_SUPABASE_PUBLISHABLE_KEY, TEST_SUPABASE_SECRET_KEY. Test live non eseguiti senza credenziali.');
+const admin=createClient(url,secret,{auth:{persistSession:false}}),a=createClient(url,key,{auth:{persistSession:false}}),b=createClient(url,key,{auth:{persistSession:false}});const ids:string[]=[];
+const suffix=crypto.randomUUID();const password=`Test-${crypto.randomUUID()}!`;const emails=[`test-a-${suffix}@example.com`,`test-b-${suffix}@example.com`];
+beforeAll(async()=>{for(const email of emails){const{data,error}=await admin.auth.admin.createUser({email,password,email_confirm:true});if(error)throw error;ids.push(data.user.id);}await a.auth.signInWithPassword({email:emails[0],password});await b.auth.signInWithPassword({email:emails[1],password});});
+afterAll(async()=>{for(const id of ids)await admin.auth.admin.deleteUser(id);});
+it('auth identity and isolation on real Supabase',async()=>{expect((await a.auth.getUser()).data.user?.id).toBe(ids[0]);const{data,error}=await a.from('clients').insert({user_id:ids[0],name:'Integration test'}).select().single();expect(error).toBeNull();expect((await b.from('clients').select('*').eq('id',data.id)).data).toHaveLength(0);expect((await b.from('clients').insert({user_id:ids[0],name:'Not permitted'})).error).not.toBeNull();await a.auth.signOut();expect((await a.auth.getUser()).data.user).toBeNull();});

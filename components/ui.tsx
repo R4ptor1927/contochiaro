@@ -1,0 +1,12 @@
+'use client';
+import * as Dialog from '@radix-ui/react-dialog';
+import {useId,cloneElement,isValidElement} from 'react';
+import {X,Info} from 'lucide-react';
+export function Button({variant='primary',className='',...props}:React.ButtonHTMLAttributes<HTMLButtonElement>&{variant?:'primary'|'secondary'|'ghost'|'danger'}){return <button className={`button ${variant} ${className}`} {...props}/>;}
+export function Card({className='',...props}:React.HTMLAttributes<HTMLElement>){return <section className={`card ${className}`} {...props}/>;}
+export function Badge({children,tone='neutral'}:{children:React.ReactNode;tone?:string}){return <span className={`badge ${tone}`}>{children}</span>;}
+export function Field({label,hint,children}:{label:string;hint?:string;children:React.ReactNode}){const id=useId();return <div className="field"><label htmlFor={id}>{label}</label>{isValidElement(children)?cloneElement(children as React.ReactElement<{id?:string;'aria-describedby'?:string}>,{id,'aria-describedby':hint?`${id}-hint`:undefined}):children}{hint&&<small id={`${id}-hint`}>{hint}</small>}</div>;}
+export function Notice({children,tone=''}:{children:React.ReactNode;tone?:string}){return <div className={`notice ${tone}`}><Info size={17}/><div>{children}</div></div>;}
+export function Modal({open,onClose,title,description,children}:{open:boolean;onClose:()=>void;title:string;description?:string;children:React.ReactNode}){return <Dialog.Root open={open} onOpenChange={v=>{if(!v)onClose();}}><Dialog.Portal><Dialog.Overlay className="modal-overlay"/><Dialog.Content className="modal"><div className="modal-heading"><div><Dialog.Title>{title}</Dialog.Title><Dialog.Description>{description||'Inserisci i dati e conferma per salvare.'}</Dialog.Description></div><Dialog.Close asChild><button className="icon-button" aria-label="Chiudi"><X size={20}/></button></Dialog.Close></div>{children}</Dialog.Content></Dialog.Portal></Dialog.Root>;}
+export function Empty({title,description,action}:{title:string;description:string;action?:React.ReactNode}){return <div className="empty"><div className="empty-mark">↗</div><h3>{title}</h3><p>{description}</p>{action}</div>;}
+export function Progress({value,label}:{value:number;label:string}){return <div className="progress" role="progressbar" aria-label={label} aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={100}><span style={{width:`${Math.min(100,Math.max(0,value))}%`}}/></div>;}
